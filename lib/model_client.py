@@ -16,4 +16,19 @@ def generate_answer(prompt, model_name=DEFAULT_MODEL_NAME, base_url=DEFAULT_BASE
     # TODO: Use a timeout.
     # TODO: Raise ModelClientError for request failures, bad JSON, or missing response.
     # TODO: Return the stripped response text.
-    raise NotImplementedError("Implement generate_answer().")
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ModelClientError("Prompt must be a non-empty string.")
+
+    try:
+        response = requests.post(
+            f"{base_url}/api/generate",
+            json={"model": model_name, "prompt": prompt, "stream": False},
+            timeout=60
+        )
+        response.raise_for_status()
+        data = response.json()
+        if "response" not in data:
+            raise ModelClientError("Missing response in JSON.")
+        return data["response"].strip()
+    except (requests.RequestException, ValueError) as e:
+        raise ModelClientError(f"Failed to generate answer: {e}")
