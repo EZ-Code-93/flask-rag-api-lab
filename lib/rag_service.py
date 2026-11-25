@@ -23,4 +23,24 @@ def answer_question(
     # TODO: Call the model client.
     # TODO: Raise ModelClientError if the model answer is blank or unusable.
     # TODO: Return formatted success response with answer and sources.
-    raise NotImplementedError("Implement answer_question().")
+    active_retriever = retriever if retriever is not None else retrieve_context
+    active_prompt_builder = (
+        prompt_builder if prompt_builder is not None else build_rag_prompt
+    )
+    active_model_client = (
+        model_client if model_client is not None else generate_answer
+    )
+
+    context_chunks = active_retriever(question, top_k=top_k)
+
+    if not context_chunks:
+        return format_fallback_response(question)
+
+    prompt = active_prompt_builder(question, context_chunks)
+    raw_answer = active_model_client(prompt)
+
+    if not isinstance(raw_answer, str) or not raw_answer.strip():
+        raise ModelClientError("Model returned a blank or unusable answer.")
+
+    sources = format_sources(context_chunks)
+    return format_success_response(raw_answer, sources)
