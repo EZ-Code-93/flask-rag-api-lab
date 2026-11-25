@@ -8,7 +8,10 @@ def get_chroma_collection(path=CHROMA_PATH, collection_name=COLLECTION_NAME):
     # TODO: Import chromadb inside this function.
     # TODO: Create a PersistentClient using path.
     # TODO: Return get_or_create_collection(collection_name).
-    raise NotImplementedError("Implement get_chroma_collection().")
+    import chromadb
+
+    client = chromadb.PersistentClient(path=path)
+    return client.get_or_create_collection(collection_name)
 
 
 def format_chroma_results(results):
@@ -26,7 +29,42 @@ def format_chroma_results(results):
     # TODO: Skip missing or blank documents.
     # TODO: Return dictionaries with id, text, source_id, title, category,
     #       section, and distance keys.
-    raise NotImplementedError("Implement format_chroma_results().")
+    if not results or not isinstance(results, dict):
+        return []
+
+    ids_batch = results.get("ids") or [[]]
+    documents_batch = results.get("documents") or [[]]
+    metadatas_batch = results.get("metadatas") or [[]]
+    distances_batch = results.get("distances") or [[]]
+
+    ids = ids_batch[0] if ids_batch else []
+    documents = documents_batch[0] if documents_batch else []
+    metadatas = metadatas_batch[0] if metadatas_batch else []
+    distances = distances_batch[0] if distances_batch else []
+
+    formatted_chunks = []
+
+    for index, doc in enumerate(documents):
+        if not isinstance(doc, str) or not doc.strip():
+            continue
+
+        chunk_id = ids[index] if index < len(ids) else None
+        metadata = metadatas[index] if index < len(metadatas) and metadatas[index] else {}
+        distance = distances[index] if index < len(distances) else None
+
+        formatted_chunks.append(
+            {
+                "id": chunk_id,
+                "text": doc,
+                "source_id": metadata.get("source_id", ""),
+                "title": metadata.get("title", ""),
+                "category": metadata.get("category", ""),
+                "section": metadata.get("section", ""),
+                "distance": distance,
+            }
+        )
+
+    return formatted_chunks
 
 
 def retrieve_context(question, collection=None, top_k=DEFAULT_TOP_K):
@@ -38,4 +76,19 @@ def retrieve_context(question, collection=None, top_k=DEFAULT_TOP_K):
     # TODO: Use the provided collection or get_chroma_collection().
     # TODO: Call collection.query() with query_texts, n_results, and include.
     # TODO: Return normalized context chunks.
-    raise NotImplementedError("Implement retrieve_context().")
+    if not isinstance(question, str):
+        return []
+
+    cleaned_question = question.strip()
+    if not cleaned_question:
+        return []
+
+    active_collection = collection if collection is not None else get_chroma_collection()
+
+    results = active_collection.query(
+        query_texts=[cleaned_question],
+        n_results=top_k,
+        include=["documents", "metadatas", "distances"],
+    )
+
+    return format_chroma_results(results)
